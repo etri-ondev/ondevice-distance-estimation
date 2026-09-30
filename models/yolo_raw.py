@@ -51,7 +51,6 @@ from models.common import (
     Proto,
     CBPH,
     FEM,
-    CA,
 )
 from models.experimental import MixConv2d
 from utils.autoanchor import check_anchor_order
@@ -261,13 +260,6 @@ class DetectionModel(BaseModel):
             m.anchors /= m.stride.view(-1, 1, 1)
             self.stride = m.stride
             self._initialize_biases()  # only run once
-        if isinstance(m, CBPH):
-            s = 256  # 2x min stride
-            m.inplace = self.inplace
-            m.stride = torch.tensor([s / x.shape[-2] for x in self.forward(torch.zeros(1, ch, s, s))])  # forward
-            m.anchors /= m.stride.view(-1, 1, 1)
-            check_anchor_order(m)
-            self.stride = m.stride
 
         # Init weights, biases
         initialize_weights(self)
@@ -396,7 +388,6 @@ def parse_model(d, ch):
         d.get("activation"),
         d.get("channel_multiple"),
     )
-
     if act:
         Conv.default_act = eval(act)  # redefine default activation, i.e. Conv.default_act = nn.SiLU()
         LOGGER.info(f"{colorstr('activation:')} {act}")  # print
@@ -434,8 +425,8 @@ def parse_model(d, ch):
             C3x,
             SEBasicBlock,
             CBAM,
+            CBPH,
             FEM,
-            CA,
         }:
             c1, c2 = ch[f], args[0]
 
@@ -451,10 +442,6 @@ def parse_model(d, ch):
             args = [ch[f]]
         elif m is Concat:
             c2 = sum(ch[x] for x in f)
-        elif m is CBPH:
-            args.append([ch[x] for x in f])
-            if isinstance(args[1], int):  # number of anchors
-                args[1] = [list(range(args[1] * 2))] * len(f)
         # TODO: channel, gw, gd
         elif m in {Detect, Segment}:
             args.append([ch[x] for x in f])
